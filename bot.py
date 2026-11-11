@@ -199,4 +199,10 @@ if __name__ == '__main__':
     threading.Thread(target=run_scheduler, daemon=True).start()
     
     print("Бот запущен и слушает команды...")
-    bot.polling(none_stop=True, interval=0)
+    import time
+while True:
+    try:
+        bot.polling(none_stop=True, interval=0)
+    except Exception as e:
+        print(f"Ошибка: {e}")
+        time.sleep(5)
