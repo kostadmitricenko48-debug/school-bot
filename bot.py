@@ -199,4 +199,4 @@ if __name__ == '__main__':
     threading.Thread(target=run_scheduler, daemon=True).start()
     
     print("Бот запущен и слушает команды...")
-    bot.infinity_polling()
+    bot.polling(none_stop=True, interval=0)
