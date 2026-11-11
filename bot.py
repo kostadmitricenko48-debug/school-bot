@@ -5,12 +5,13 @@ import time
 import threading
 from datetime import datetime
 import os
+from flask import Flask
 
-# --- ВСТАВЬТЕ ВАШ ТОКЕН СЮДА ---
-BOT_TOKEN = '9222566051:AAHfx6LLKza-hI2R_YvLvbLQawNC13v-JEc'
+# --- ЧТЕНИЕ ТОКЕНА ИЗ ПЕРЕМЕННЫХ ОКРУЖЕНИЯ ---
+BOT_TOKEN = os.getenv('BOT_TOKEN')
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# Файл, где будет храниться ваш ID (чтобы бот вас не забывал)
+# Файл для хранения ID (на бесплатном Render он может сбрасываться при перезапуске)
 ID_FILE = 'my_id.txt'
 
 # --- ВРЕМЯ УРОКОВ (2 смена) ---
@@ -110,7 +111,6 @@ def next_lesson_info(message):
 
     lessons_today = SCHEDULE[current_day]
     
-    # Ищем следующий урок
     for i in range(1, len(lessons_today) + 1):
         start, end = TIME_SLOTS[i]
         if current_time < start:
@@ -149,14 +149,10 @@ def check_schedule_and_notify():
         start_str, end_str = TIME_SLOTS[i]
         subject = lessons_today[i-1]
 
-        # Время начала и конца в формате datetime
         start_dt = datetime.strptime(start_str, "%H:%M").replace(year=now.year, month=now.month, day=now.day)
-        end_dt = datetime.strptime(end_str, "%H:%M").replace(year=now.year, month=now.month, day=now.day)
-        
-        # Вычисляем время за 10 минут до начала
         notify_dt = start_dt - datetime.timedelta(minutes=10)
         
-        # Проверяем, не пора ли отправить уведомление о начале
+        # Уведомление за 10 минут
         if now.strftime("%H:%M") == notify_dt.strftime("%H:%M"):
             msg = f"⚠️ Через 10 минут начнется {i}-й урок!\n📖 {subject}\n⏰ Время: {start_str} - {end_str}"
             try:
@@ -165,7 +161,7 @@ def check_schedule_and_notify():
             except Exception as e:
                 print(f"Ошибка: {e}")
 
-        # Проверяем, не пора ли отправить уведомление о конце
+        # Уведомление о конце урока
         if current_time == end_str:
             msg = f"🔔 Урок закончился! ({subject})\nМожешь отдохнуть до {TIME_SLOTS[i+1][0] if i < len(lessons_today) else 'конца дня'}."
             try:
@@ -174,14 +170,33 @@ def check_schedule_and_notify():
             except Exception as e:
                 print(f"Ошибка: {e}")
 
-# --- ФОНОВЫЙ ПРОЦЕСС ---
+# --- ФОНОВЫЙ ПРОЦЕСС ДЛЯ РАСПИСАНИЯ ---
 def run_scheduler():
     schedule.every(1).minutes.do(check_schedule_and_notify)
     while True:
         schedule.run_pending()
         time.sleep(1)
 
+# ==========================================
+# ВЕБ-СЕРВЕР ДЛЯ RENDER (чтобы он не засыпал)
+# ==========================================
+app = Flask(__name__)
+
+@app.route('/')
+def index():
+    return "Bot is running!"
+
+@app.route('/health')
+def health():
+    return "OK"
+
 if __name__ == '__main__':
+    # Запускаем веб-сервер Flask в фоновом потоке
+    port = int(os.environ.get('PORT', 5000))
+    threading.Thread(target=lambda: app.run(host='0.0.0.0', port=port), daemon=True).start()
+    
+    # Запускаем проверку расписания в фоновом потоке
     threading.Thread(target=run_scheduler, daemon=True).start()
+    
     print("Бот запущен и слушает команды...")
     bot.infinity_polling()
